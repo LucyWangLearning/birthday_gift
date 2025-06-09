@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>生日地图解谜</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Arial", sans-serif;
+      background: #fdfaf0;
+      text-align: center;
+    }
+
+    #map-container {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+
+    #map-img {
+      width: 100%;
+      height: auto;
+      border: 4px solid #ccc;
+      border-radius: 8px;
+      transition: transform 0.5s ease;
+    }
+
+    .hotspot {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      background: rgba(255, 0, 0, 0.3);
+    }
+
+    #hint {
+      font-size: 18px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎁 地图生日解谜</h1>
+  <div id="map-container">
+    <img id="map-img" src="2k_earth_daymap.jpg" alt="地图" />
+
+    <!-- 点击区域（四川） -->
+    <div class="hotspot" id="sichuan" style="top: 50%; left: 40%;"></div>
+    <!-- 点击区域（杭州） -->
+    <div class="hotspot" id="hangzhou" style="top: 55%; left: 65%; display: none;"></div>
+  </div>
+
+  <div id="hint">请点击你本科所在的地方</div>
+
+  <script>
+    const sichuan = document.getElementById('sichuan');
+    const hangzhou = document.getElementById('hangzhou');
+    const hint = document.getElementById('hint');
+    const mapImg = document.getElementById('map-img');
+
+    let step = 0;
+
+    sichuan.onclick = () => {
+      if (step === 0) {
+        hint.innerText = "好吧更改一下～";
+        sichuan.style.display = "none";
+        hangzhou.style.display = "block";
+        step = 1;
+      }
+    };
+
+    hangzhou.onclick = () => {
+      if (step === 1) {
+        hint.innerText = "解锁成功，进入下一阶段 🌏";
+        hangzhou.style.display = "none";
+        mapImg.src = "china_to_sea.jpg"; // 你可以换成第二阶段地图
+        step = 2;
+      }
+    };
+  </script>
+
+</body>
+</html>
