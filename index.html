@@ -110,6 +110,7 @@
 </head>
 <body>
   <h1>川儿给张振宇的生日礼物的一部分</h1>
+  <div id="guide" style="margin:10px 0 0 0;font-size:1.1em;color:#7c3aed;text-align:left;line-height:1.7;font-family:'ZCOOL KuaiLe',cursive,sans-serif;max-width:700px;width:90vw;"></div>
   <div id="map"></div>
   <div class="tip" id="tip">你就点着玩儿吧，这个page可能会更新吧……</div>
   <div id="celebrate-modal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:9999;background:rgba(80,40,120,0.18);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;">
@@ -135,6 +136,12 @@
     let stars = [];
     let guessedLatLngs = [];
     let polyline = null;
+
+    // 引导相关状态
+    let guideStep = 0; // 0: 不显示，1: 只显示第一行，2: 显示前两行，3: 显示三行
+    let errorCount = 0; // 成都前错误计数
+    let errorCountAfterChengdu = 0; // 成都后错误计数
+    let errorCountAfterHangzhou = 0; // 杭州后错误计数
 
     // 初始化地图，显示成都和杭州
     const map = L.map('map', {
@@ -183,7 +190,7 @@
     }
 
     // 步骤提示
-    function setTip(text) {
+    function setTip() {
       document.getElementById('tip').innerText = '你就点着玩儿吧，这个page可能会更新吧……';
     }
 
@@ -269,11 +276,9 @@
         map.once('moveend', () => {
           setTimeout(() => {
             updatePolyline();
+            setTip();
           }, 400);
         });
-        setTimeout(() => {
-          setTip(`请点击"${locations[step].name}"所在区域！`);
-        }, 800);
       } else {
         setTip();
         map.fitBounds([[-60, -170], [75, 180]], { animate: true, padding: [30, 30], duration: 2.2 });
@@ -282,6 +287,7 @@
             updatePolyline();
             // 显示庆祝弹窗
             document.getElementById('celebrate-modal').style.display = 'flex';
+            setTip();
           }, 400);
         });
       }
@@ -314,6 +320,11 @@
       map.keyboard.disable();
       // 隐藏弹窗
       document.getElementById('celebrate-modal').style.display = 'none';
+      guideStep = 0;
+      errorCount = 0;
+      errorCountAfterChengdu = 0;
+      errorCountAfterHangzhou = 0;
+      updateGuide();
     }
 
     // 点击事件
@@ -323,8 +334,7 @@
       if (isInArea(e.latlng.lat, e.latlng.lng, loc, loc.area)) {
         showStar(loc.lat, loc.lng);
         guessedLatLngs.push([loc.lat, loc.lng]);
-        updatePolyline(); // 立即显示连线
-        // 点击成都后恢复地图缩放和拖动
+        updatePolyline();
         if (step === 0) {
           map.options.dragging = true;
           map.options.scrollWheelZoom = true;
@@ -336,16 +346,58 @@
           map.doubleClickZoom.enable();
           map.boxZoom.enable();
           map.keyboard.enable();
+          // 成都被点对后，重置成都后阶段错误计数
+          errorCountAfterChengdu = 0;
+        }
+        if (step === 1) {
+          // 杭州被点对后，重置杭州后阶段错误计数
+          errorCountAfterHangzhou = 0;
         }
         step++;
+        updateGuide();
         nextStep();
       } else {
-        alert('点错啦！请再试一次~');
+        if (step === 0) {
+          errorCount++;
+          if (errorCount >= 3 && guideStep < 1) {
+            guideStep = 1;
+            updateGuide();
+          }
+          alert('点错啦！请再试一次~');
+        } else if (step === 1) {
+          errorCountAfterChengdu++;
+          if (errorCountAfterChengdu >= 3 && guideStep < 2) {
+            guideStep = 2;
+            updateGuide();
+          }
+          alert('点错啦！请再试一次~');
+        } else if (step === 2) {
+          errorCountAfterHangzhou++;
+          if (errorCountAfterHangzhou >= 3 && guideStep < 3) {
+            guideStep = 3;
+            updateGuide();
+          }
+          alert('啊我还不知道你去过这个地方，你给我提issue我改。');
+        } else {
+          errorCountAfterHangzhou++;
+          if (errorCountAfterHangzhou >= 3 && guideStep < 3) {
+            guideStep = 3;
+            updateGuide();
+          }
+          if (guideStep >= 3) {
+            alert('哥们儿你去过这么多地方吗！你往你告诉过我的行程点……');
+          } else {
+            alert('啊我还不知道你去过这个地方，你给我提issue我改。');
+          }
+        }
       }
     });
 
     // 页面加载后用JS定时器同步所有marker-img的transform，实现左右翻转动画
+    let markerFlipTimerStarted = false;
     function syncMarkerFlip() {
+      if (markerFlipTimerStarted) return;
+      markerFlipTimerStarted = true;
       let flipped = false;
       setInterval(() => {
         flipped = !flipped;
@@ -356,13 +408,32 @@
     }
     document.addEventListener('DOMContentLoaded', syncMarkerFlip);
 
-    // 绑定"再来一次"按钮
-    document.getElementById('restart-btn').onclick = resetGame;
-
-    // 页面初始时确保弹窗隐藏
+    // 页面初始时确保弹窗隐藏、marker动画同步、按钮绑定
     document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('celebrate-modal').style.display = 'none';
+      syncMarkerFlip();
+      document.getElementById('restart-btn').onclick = function() {
+        resetGame();
+        // 自动滚动到地图区域
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
     });
+
+    function updateGuide() {
+      let html = '';
+      if (guideStep >= 1) {
+        html += '1.你先点成都，成都是开始的地方。<br>';
+      }
+      if (guideStep >= 2) {
+        html += '2.好吧，第二个地方是杭州。提示：从此往后的判定区域范围扩大至省/国。<br>';
+      }
+      if (guideStep >= 3) {
+        html += '3.哥们儿你去过这么多地方吗！你往你告诉过我的行程点……';
+      }
+      document.getElementById('guide').innerHTML = html;
+      document.getElementById('guide').style.display = guideStep === 0 ? 'none' : '';
+    }
+    updateGuide();
   </script>
 </body>
 </html> 
