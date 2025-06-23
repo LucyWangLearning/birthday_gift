@@ -1,94 +1,354 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>地图缩放交互</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地图地点猜测游戏</title>
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
-      background: #000;
-      color: #fff;
-      font-family: sans-serif;
-      text-align: center;
+      background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
+      font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+      color: #4b2067;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
     }
-
     h1 {
-      margin-top: 20px;
+      margin-top: 30px;
+      font-size: 2.5em;
+      color: #7c3aed;
+      text-shadow: 2px 2px 8px #fff6;
     }
-
-    #map-container {
-      position: relative;
-      width: 100%;
-      overflow: hidden;
-      height: 80vh;
-      margin: auto;
-    }
-
     #map {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 2048px;
-      height: 1024px;
-      background-image: url("2k_earth_daymap.jpg");
-      background-size: cover;
-      transform-origin: 0 0;
-      transition: transform 1s ease;
+      width: 90vw;
+      height: 60vw;
+      max-height: 700px;
+      margin: 30px auto 0 auto;
+      border-radius: 30px;
+      box-shadow: 0 8px 32px #7c3aed44;
+      overflow: hidden;
+      position: relative;
+      background: #e0c3fc;
     }
-
-    .hotspot {
+    .star {
       position: absolute;
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .tip {
+      background: #fff6;
+      color: #7c3aed;
+      border-radius: 16px;
+      padding: 10px 20px;
+      font-size: 1.2em;
+      margin-top: 10px;
+      box-shadow: 0 2px 8px #7c3aed22;
+      display: inline-block;
+    }
+    .leaflet-container {
+      background: transparent !important;
+      border-radius: 30px;
+    }
+    .leaflet-popup-content-wrapper {
+      background: #f3e8ff;
+      color: #7c3aed;
+      border-radius: 16px;
+      font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+    }
+    .leaflet-popup-tip {
+      background: #f3e8ff;
+    }
+    .leaflet-control-zoom {
+      display: none;
+    }
+    .star-marker { animation: star-bounce 0.7s cubic-bezier(.68,-0.55,.27,1.55); }
+    @keyframes star-bounce {
+      0% { transform: scale(0.2); opacity: 0; }
+      60% { transform: scale(1.2); opacity: 1; }
+      80% { transform: scale(0.95); }
+      100% { transform: scale(1); }
+    }
+    .star-svg { filter: drop-shadow(0 2px 6px #ffecb3); }
+    .custom-marker { /* 不要加animation，避免影响定位 */ }
+    @keyframes marker-flip {
+      0% { transform: scaleX(1); }
+      100% { transform: scaleX(-1); }
+    }
+    .marker-img {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: rgba(255, 0, 0, 0.3);
-      border: 2px solid red;
-      cursor: pointer;
+      box-shadow: 0 2px 8px #b39ddb88;
+      /* 不再用animation */
+      transition: transform 0.18s cubic-bezier(.68,-0.55,.27,1.55);
     }
-
-    #hint {
-      margin-top: 20px;
-      font-size: 18px;
+    body.marker-anim-sync .marker-img {
+      animation-delay: 0s !important;
+      animation-play-state: running;
     }
   </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
-  <h1>🎁 地图解谜游戏</h1>
-  <div id="map-container">
-    <div id="map">
-      <!-- 四川 -->
-      <div class="hotspot" id="sichuan" style="left: 740px; top: 390px;"></div>
-      <!-- 杭州 -->
-      <div class="hotspot" id="hangzhou" style="left: 870px; top: 430px;"></div>
+  <h1>川儿给张振宇的生日礼物的一部分</h1>
+  <div id="map"></div>
+  <div class="tip" id="tip">你就点着玩儿吧，这个page可能会更新吧……</div>
+  <div id="celebrate-modal" style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:9999;background:rgba(80,40,120,0.18);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;">
+    <div style="background:rgba(255,255,255,0.98);border-radius:32px;box-shadow:0 8px 32px #7c3aed44;padding:36px 32px 24px 32px;min-width:260px;max-width:90vw;text-align:center;position:relative;">
+      <div style="font-size:2.5em;">🎉🎂🥳🎈✨</div>
+      <div style="font-size:1.3em;margin:18px 0 24px 0;color:#7c3aed;">祝你生日快乐鸭，要不要再玩儿一次？</div>
+      <button id="restart-btn" style="background:linear-gradient(90deg,#a18cd1,#fbc2eb);color:#fff;font-size:1.1em;padding:10px 36px;border:none;border-radius:20px;box-shadow:0 2px 8px #7c3aed22;cursor:pointer;">再来一次</button>
     </div>
   </div>
-  <div id="hint">点击你的本科地</div>
-
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    const map = document.getElementById("map");
-    const hint = document.getElementById("hint");
+    // 地点数据
+    const locations = [
+      { name: '成都', lat: 30.5728, lng: 104.0668, zoom: 7, area: 1.2 },
+      { name: '杭州', lat: 30.2741, lng: 120.1551, zoom: 7, area: 1.2 },
+      { name: '新加坡', lat: 1.3521, lng: 103.8198, zoom: 9, area: 0.5 },
+      { name: '夏威夷', lat: 21.3069, lng: -157.8583, zoom: 8, area: 1.0 },
+      { name: '韩国', lat: 37.5665, lng: 126.9780, zoom: 7, area: 1.0 }, // 首尔
+      { name: '德国', lat: 51.1657, lng: 10.4515, zoom: 5, area: 2.5 },
+      { name: '俄罗斯', lat: 61.5240, lng: 105.3188, zoom: 3, area: 8.0 },
+    ];
+    let step = 0; // 当前步骤，初始为0，第一步判定成都
+    let stars = [];
+    let guessedLatLngs = [];
+    let polyline = null;
 
-    let step = 0;
+    // 初始化地图，显示成都和杭州
+    const map = L.map('map', {
+      center: [30.4, 112],
+      zoom: 5,
+      zoomControl: false,
+      attributionControl: false,
+      minZoom: 2,
+      maxZoom: 10,
+      maxBounds: [[-85, -180], [85, 180]],
+      dragging: false, // 初始禁止拖动
+      scrollWheelZoom: false, // 初始禁止滚轮缩放
+      doubleClickZoom: false, // 初始禁止双击缩放
+      boxZoom: false, // 初始禁止框选缩放
+      keyboard: false // 初始禁止键盘缩放
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      minZoom: 2,
+      maxZoom: 19,
+    }).addTo(map);
 
-    function zoomTo(x, y, scale) {
-      map.style.transform = `translate(${-x * (scale - 1)}px, ${-y * (scale - 1)}px) scale(${scale})`;
+    // marker.jpg图片Leaflet marker图标（同步动画）
+    const markerIcon = L.divIcon({
+      className: 'custom-marker',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      html: `<img src="marker.jpg" class="marker-img" width="32" height="32" draggable="false"/>`
+    });
+
+    // 显示marker图片
+    function showStar(lat, lng) {
+      // 检查是否已存在该点的marker
+      if (stars.some(s => s.lat === lat && s.lng === lng)) return;
+      const marker = L.marker([lat, lng], { icon: markerIcon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+      stars.push({ marker, lat, lng });
     }
 
-    document.getElementById("sichuan").onclick = () => {
-      if (step === 0) {
-        zoomTo(740, 390, 2);
-        hint.innerText = "太棒了～接下来请点击研究生城市";
-        step = 1;
+    // 连线
+    function updatePolyline() {
+      if (polyline) {
+        map.removeLayer(polyline);
       }
-    };
+      if (guessedLatLngs.length > 1) {
+        polyline = L.polyline(guessedLatLngs, { color: '#FFD600', weight: 4, dashArray: '6 8', lineCap: 'round' }).addTo(map);
+      }
+    }
 
-    document.getElementById("hangzhou").onclick = () => {
-      if (step === 1) {
-        zoomTo(870, 430, 3);
-        hint.innerText = "厉害！即将前往下一站...";
-        step = 2;
+    // 步骤提示
+    function setTip(text) {
+      document.getElementById('tip').innerText = '你就点着玩儿吧，这个page可能会更新吧……';
+    }
+
+    // 判定区域
+    function isInArea(lat, lng, target, area) {
+      // 新加坡特殊判定：新加坡或马来西亚都算
+      if (target.name === '新加坡') {
+        // 新加坡大致范围
+        const sgBounds = {
+          north: 1.48, south: 1.20, west: 103.6, east: 104.1
+        };
+        // 马来西亚大致范围
+        const myBounds = {
+          north: 7.5, south: 0.8, west: 99.6, east: 119.3
+        };
+        if (
+          lat >= sgBounds.south && lat <= sgBounds.north &&
+          lng >= sgBounds.west && lng <= sgBounds.east
+        ) return true;
+        if (
+          lat >= myBounds.south && lat <= myBounds.north &&
+          lng >= myBounds.west && lng <= myBounds.east
+        ) return true;
       }
-    };
+      // 韩国特殊判定：整个韩国区域都算
+      if (target.name === '韩国') {
+        // 韩国大致范围
+        const krBounds = {
+          north: 38.7, south: 33.0, west: 124.5, east: 131.9
+        };
+        if (
+          lat >= krBounds.south && lat <= krBounds.north &&
+          lng >= krBounds.west && lng <= krBounds.east
+        ) return true;
+      }
+      // 夏威夷特殊判定：四大岛都算
+      if (target.name === '夏威夷') {
+        // 四大岛经纬度范围（大致）
+        const islands = [
+          // 欧胡岛
+          { north: 21.72, south: 21.20, west: -158.3, east: -157.6 },
+          // 毛伊岛
+          { north: 21.05, south: 20.60, west: -156.8, east: -156.2 },
+          // 夏威夷大岛
+          { north: 20.30, south: 18.80, west: -156.1, east: -154.7 },
+          // 考艾岛
+          { north: 22.30, south: 21.80, west: -159.8, east: -159.3 },
+        ];
+        for (const isl of islands) {
+          if (
+            lat >= isl.south && lat <= isl.north &&
+            lng >= isl.west && lng <= isl.east
+          ) return true;
+        }
+      }
+      // 其他地点按原有逻辑
+      const R = 6371; // 地球半径km
+      const dLat = (lat - target.lat) * Math.PI / 180;
+      const dLng = (lng - target.lng) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat * Math.PI / 180) * Math.cos(target.lat * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const d = R * c;
+      // 判定范围随步数递增变大
+      return d < area * (1 + step * 0.8) * 50;
+    }
+
+    // 步骤流程
+    function nextStep() {
+      if (step < locations.length) {
+        const points = locations.slice(0, step + 1).map(loc => [loc.lat, loc.lng]);
+        let bounds = L.latLngBounds(points);
+        let duration = 2.2; // 统一调慢
+        if (step === 1) {
+          const pad = 4;
+          bounds = L.latLngBounds([
+            [Math.min(points[0][0], points[1][0]) - pad, Math.min(points[0][1], points[1][1]) - pad],
+            [Math.max(points[0][0], points[1][0]) + pad, Math.max(points[0][1], points[1][1]) + pad]
+          ]);
+        }
+        map.fitBounds(bounds, { animate: true, padding: [140, 140], duration });
+        map.once('moveend', () => {
+          setTimeout(() => {
+            updatePolyline();
+          }, 400);
+        });
+        setTimeout(() => {
+          setTip(`请点击"${locations[step].name}"所在区域！`);
+        }, 800);
+      } else {
+        setTip();
+        map.fitBounds([[-60, -170], [75, 180]], { animate: true, padding: [30, 30], duration: 2.2 });
+        map.once('moveend', () => {
+          setTimeout(() => {
+            updatePolyline();
+            // 显示庆祝弹窗
+            document.getElementById('celebrate-modal').style.display = 'flex';
+          }, 400);
+        });
+      }
+    }
+
+    // 初始缩放到成都区域
+    // 用成都为中心显示周边
+    map.setView([locations[0].lat, locations[0].lng], 8); // 成都周边
+    setTimeout(() => {
+      setTip();
+    }, 800);
+
+    // 重置游戏状态
+    function resetGame() {
+      // 移除所有marker
+      stars.forEach(({ marker }) => marker.remove());
+      stars = [];
+      // 移除连线
+      if (polyline) { map.removeLayer(polyline); polyline = null; }
+      guessedLatLngs = [];
+      step = 0;
+      // 恢复地图到成都周边
+      map.setView([locations[0].lat, locations[0].lng], 8);
+      setTip();
+      // 禁止缩放拖动
+      map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.boxZoom.disable();
+      map.keyboard.disable();
+      // 隐藏弹窗
+      document.getElementById('celebrate-modal').style.display = 'none';
+    }
+
+    // 点击事件
+    map.on('click', function(e) {
+      if (step >= locations.length) return;
+      const loc = locations[step];
+      if (isInArea(e.latlng.lat, e.latlng.lng, loc, loc.area)) {
+        showStar(loc.lat, loc.lng);
+        guessedLatLngs.push([loc.lat, loc.lng]);
+        updatePolyline(); // 立即显示连线
+        // 点击成都后恢复地图缩放和拖动
+        if (step === 0) {
+          map.options.dragging = true;
+          map.options.scrollWheelZoom = true;
+          map.options.doubleClickZoom = true;
+          map.options.boxZoom = true;
+          map.options.keyboard = true;
+          map.dragging.enable();
+          map.scrollWheelZoom.enable();
+          map.doubleClickZoom.enable();
+          map.boxZoom.enable();
+          map.keyboard.enable();
+        }
+        step++;
+        nextStep();
+      } else {
+        alert('点错啦！请再试一次~');
+      }
+    });
+
+    // 页面加载后用JS定时器同步所有marker-img的transform，实现左右翻转动画
+    function syncMarkerFlip() {
+      let flipped = false;
+      setInterval(() => {
+        flipped = !flipped;
+        document.querySelectorAll('.marker-img').forEach(img => {
+          img.style.transform = flipped ? 'scaleX(-1)' : 'scaleX(1)';
+        });
+      }, 500);
+    }
+    document.addEventListener('DOMContentLoaded', syncMarkerFlip);
+
+    // 绑定"再来一次"按钮
+    document.getElementById('restart-btn').onclick = resetGame;
+
+    // 页面初始时确保弹窗隐藏
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('celebrate-modal').style.display = 'none';
+    });
   </script>
 </body>
-</html>
+</html> 
